@@ -29,7 +29,7 @@ import tensorflow as tf
 from map_evaluation import P_wrapper, MapBuilder
 
 sys.path.append('../GAN_inverse_projection')
-from utils import GANinv, CGANinv
+# from utils import GANinv, CGANinv
 from umap import UMAP
 from LID import ID_finder_T
 
@@ -56,9 +56,9 @@ data_dirs = [
     # 'blobs_dim5_n1000',
     # 'blobs_dim50_n1000',
     # 'blobs_dim100_n1000',
-    # 'har', 
-    'mnist', 
-    # 'fashionmnist', 
+    'har', 
+    # 'mnist', 
+    'fashionmnist', 
     # 'reuters', 
     ]
 datasets_real = {}
@@ -99,10 +99,10 @@ for d in data_dirs:
 
 
 projectors = {
-            # 'DBM_orig_torch': P_wrapper(NNinv_Torch=1),
-            # 'DeepView_0.65': P_wrapper(deepview=1),
+            'DBM_orig_torch': P_wrapper(NNinv_Torch=1),
+            'DeepView_0.65': P_wrapper(deepview=1),
             # 'DBM_orig_keras': P_wrapper(NNinv_Keras=1),
-            'SSNP' : P_wrapper(ssnp=1),
+            # 'SSNP' : P_wrapper(ssnp=1),
             }
 
 
@@ -138,7 +138,7 @@ for data_name, dataset in datasets_real.items():
         else:
             X_train_2d = proj.P.embedding_
 
-        map_builder = MapBuilder(clf, proj, X_train, y_train, grid=200)
+        map_builder = MapBuilder(clf, proj, X_train, y_train, grid=150)
         alpha, labels = map_builder.get_prob_map()
         GM = map_builder.get_gradient_map()
         if 'blob' in data_name:
