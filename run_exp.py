@@ -27,11 +27,12 @@ warnings.filterwarnings('ignore')
 import tensorflow as tf
 
 from map_evaluation import P_wrapper, MapBuilder
+from ssnp import SSNP
 
 sys.path.append('../GAN_inverse_projection')
 # from utils import GANinv, CGANinv
 from umap import UMAP
-from LID import ID_finder_T
+from LID import ID_finder_T, get_data_LID
 
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -53,12 +54,33 @@ if gpus:
 
 data_dir = '../sdbm/data'
 data_dirs = [
-    # 'blobs_dim5_n1000',
-    # 'blobs_dim50_n1000',
-    # 'blobs_dim100_n1000',
-    'har', 
+    'blobs_dim3_n5000_y5',
+    'blobs_dim10_n5000_y5',
+    'blobs_dim30_n5000_y5',
+    'blobs_dim100_n5000_y5',
+    'blobs_dim300_n5000_y5',
+
+    'blobs_dim3_n5000_y2',
+    'blobs_dim10_n5000_y2',
+    'blobs_dim30_n5000_y2',
+    'blobs_dim100_n5000_y2',
+    'blobs_dim300_n5000_y2',
+
+    'blobs_dim3_n5000_y3',
+    'blobs_dim10_n5000_y3',
+    'blobs_dim30_n5000_y3',
+    'blobs_dim100_n5000_y3',
+    'blobs_dim300_n5000_y3',
+
+    'blobs_dim3_n5000_y10',
+    'blobs_dim10_n5000_y10',
+    'blobs_dim30_n5000_y10',
+    'blobs_dim100_n5000_y10',
+    # 'blobs_dim300_n1500_y10',
+
+    # 'har', 
     # 'mnist', 
-    'fashionmnist', 
+    # 'fashionmnist', 
     # 'reuters', 
     ]
 datasets_real = {}
@@ -73,7 +95,8 @@ for d in data_dirs:
     else:
         dim = int(d.split('_')[1][3:])
         print(dim)
-        X, y = make_blobs(n_samples=1500, n_features=dim, centers=5, cluster_std=1, random_state=0)
+        n_class = int(d.split('_')[3][1:])
+        X, y = make_blobs(n_samples=6000, n_features=dim, centers=n_class, cluster_std=1, random_state=0)
         scaler = MinMaxScaler()
         X = scaler.fit_transform(X).astype(np.float32)
     ######
@@ -81,7 +104,7 @@ for d in data_dirs:
     n_classes = len(np.unique(y))
 
     if 'blob' in d:
-        train_size = 1000
+        train_size = dim = int(d.split('_')[2][1:])
     else:
         train_size = min(int(n_samples*0.9), 2000)
     test_size = 5000 # inverse
@@ -99,10 +122,25 @@ for d in data_dirs:
 
 
 projectors = {
-            'DBM_orig_torch': P_wrapper(NNinv_Torch=1),
-            'DeepView_0.65': P_wrapper(deepview=1),
+            'DBM_orig_torch': P_wrapper(NNinv_Torch=1, ),
+            # 'DeepView': P_wrapper(deepview=1),
             # 'DBM_orig_keras': P_wrapper(NNinv_Keras=1),
-            # 'SSNP' : P_wrapper(ssnp=1),
+            'SSNP' : P_wrapper(ssnp=1),
+            'SSNP_3' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=3),
+            'SSNP_10' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=10),
+            'SSNP_30' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=30),
+            
+            'DBM_3' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3),
+            'DBM_10' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10),
+            'DBM_30' : P_wrapper(NNinv_Torch=1, bottleneck_dim=30),
+
+            'DBM_3_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3, P='PCA'),
+            'DBM_10_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10, P='PCA'),
+            'DBM_30_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=30, P='PCA'),
+
+            # 'DBM_3_tSNE' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3, P='tSNE'),
+            # 'DBM_10_tSNE' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10, P='tSNE'),
+            # 'DBM_30_tSNE' : P_wrapper(NNinv_Torch=1, bottleneck_dim=30, P='tSNE'),
             }
 
 
@@ -114,13 +152,14 @@ if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
 
-
+df = pd.DataFrame(columns=['Dataset', 'DM method', 'Dim', 'n_sample', 'n_cluster' ,'Intrinsic Dim (reconstructed)', 'Intrinsic Dim (data)'])
 for data_name, dataset in datasets_real.items():
     print(data_name)
     print('='*20)
     print(f"processing {data_name}")
     X_train, X_test, y_train, y_test = dataset
     n_classes = len(np.unique(y_train))
+    n_sample = X_train.shape[0]
     input_dim = X_train.shape[1]
 
     clf = LogisticRegression(max_iter=1000, random_state=420)
@@ -132,27 +171,44 @@ for data_name, dataset in datasets_real.items():
     for proj_name, proj in projectors.items():
         print(f"processing {data_name} with {proj_name}")
 
-        proj.fit(X_train, y_train, clf)
-        if proj.ssnp:
-            X_train_2d = proj.transform(X_train)
-        else:
-            X_train_2d = proj.P.embedding_
-
-        map_builder = MapBuilder(clf, proj, X_train, y_train, grid=150)
-        alpha, labels = map_builder.get_prob_map()
-        GM = map_builder.get_gradient_map()
-        if 'blob' in data_name:
-            sampling_size = input_dim + 10
-        else:
-            sampling_size = 30
-        LID_finder = ID_finder_T(X_train_2d, proj, grid=100, sample_size=sampling_size, device='cpu')
-        LID_evalues = LID_finder.LID_eval.to('cpu').numpy()
-
-        ### save LID_evalues, (alpha, labels), GM, X_train_2d, y_train separately
-        save_path = os.path.join(save_dir, f"{data_name}_{proj_name}.npz")
-        np.savez(save_path, LID_evalues=LID_evalues, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train)
-        print(f"saved to {save_path}")
+        # check bottleneck dim and the data dim
+        if 'SSNP' not in proj_name:
+            bottleneck_dim = proj.bottleneck_dim
+            if bottleneck_dim > input_dim:
+                print(f"bottleneck dim {bottleneck_dim} is larger than input dim {input_dim}, skip")
+                continue
         
+        if proj_name == 'DeepView':
+            proj.fit(X_train, y_train, clf)
+        else:
+            proj.fit(X_train, y_train)
+
+                 
+        try:
+            X_train_2d = proj.P.embedding_
+        except:
+            X_train_2d = proj.transform(X_train)
+            print(proj_name, X_train_2d.shape)
+
+        # map_builder = MapBuilder(clf, proj, X_train, y_train, grid=150)
+        # alpha, labels = map_builder.get_prob_map()
+        # GM = map_builder.get_gradient_map()
+        # if 'blob' in data_name:
+        #     sampling_size = input_dim + 10
+        # else:
+        #     sampling_size = 30
+        # LID_finder = ID_finder_T(X_train_2d, proj, grid=100, sample_size=sampling_size, device='cpu')
+        # LID_evalues = LID_finder.LID_eval.to('cpu').numpy()
+
+        # ### save LID_evalues, (alpha, labels), GM, X_train_2d, y_train separately
+        # save_path = os.path.join(save_dir, f"{data_name}_{proj_name}.npz")
+        # np.savez(save_path, LID_evalues=LID_evalues, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train)
+        # print(f"saved to {save_path}")
+        
+        rec_ID, data_ID = get_data_LID(X_train_2d, y_train, proj, device='cpu', data=X_train)
+        df = df.append({'Dataset': data_name, 'DM method': proj_name, 'Dim': input_dim ,'n_sample': n_sample, 'n_cluster': n_classes, 'Intrinsic Dim (reconstructed)': rec_ID, 'Intrinsic Dim (data)': data_ID}, ignore_index=True)
+
+df.to_csv(os.path.join(save_dir, 'data_ID_results_moredata.csv'), index=False)
 
 
 

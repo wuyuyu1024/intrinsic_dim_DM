@@ -60,7 +60,7 @@ class ID_finder_T:
 
         for i, pix in tqdm(enumerate(XY)):
             subset = self.get_subset(pix, pixel_w, pixel_h, self.sample_size)
-            local_cov = self.compute_eigen(subset)
+            local_cov = self.compute_eigen(subset, self.DM, self.device)
             LID_eval[i] = local_cov
         
         return LID_eval
@@ -84,15 +84,23 @@ class ID_finder_T:
         samples = np.random.uniform(lower, upper, (n_samples, 2))
         return samples
 
-    def compute_eigen(self, subset):
+    @staticmethod
+    def compute_eigen(subset, Pinv, device=None, data=None):
+        if device is None:
+            device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         # to cuda, then compute cov
-        subset = self.DM.inverse_transform(subset)
-        subset = T.tensor(subset, dtype=T.float32, device=self.device)
-        cov = T.cov(subset.T)
+        if data is None:
+            subset = Pinv.inverse_transform(subset)
+            subset = T.tensor(subset, dtype=T.float32, device=device)
+            cov = T.cov(subset.T)
+        else:
+            data = T.tensor(data, dtype=T.float32, device=device)
+            cov = T.cov(data.T)
 
-        ###
+        ### add regularization
         regularization_factor = 1e-12
-        cov += T.eye(cov.shape[0], device=self.device) * regularization_factor
+        cov += T.eye(cov.shape[0], device=device) * regularization_factor
+        ############################
         # comput eigenvalues
         eigvals = LA.eigvalsh(cov)
         sum_eigvals = T.sum(eigvals)
@@ -101,7 +109,8 @@ class ID_finder_T:
         eigvals = T.flip(eigvals, dims=[0])        
         return eigvals
 
-    def process_results(self, LID_eval, mode='dim', threshold=0.95):
+    @staticmethod
+    def process_results(LID_eval, mode='dim', threshold=0.95):
         if mode == 'dim':
             # how many dimensions are needed to explain 95% of the variance    
             cumsum = T.cumsum(LID_eval, dim=1)
@@ -176,3 +185,30 @@ class MidpointNormalize(Normalize):
     def __call__(self, value, clip=None):
         x, y = [self.vmin, self.midpoint, self.vmax], [0, 0.5, 1]
         return np.ma.masked_array(np.interp(value, x, y)) 
+
+
+def get_data_LID(X_2d, y, Pinv, threshold=0.95, device='cpu', data=None):
+    n_class = len(np.unique(y))
+    reco_lid_list = []
+    data_lid_list = []
+    for i in range(n_class):
+        subset = X_2d[y==i]
+        eigen_val = ID_finder_T.compute_eigen(subset, Pinv, device=device)
+        ## reshape eigen_val
+        eigen_val = eigen_val.reshape(1, -1)
+        lid = ID_finder_T.process_results(eigen_val, mode='dim', threshold=threshold).to('cpu').numpy()
+        reco_lid_list.append(lid)
+
+        if data is not None:
+            data_subset = data[y==i]
+            eigen_val = ID_finder_T.compute_eigen(None, None, device=device, data=data_subset)
+            ## reshape eigen_val
+            eigen_val = eigen_val.reshape(1, -1)
+            lid = ID_finder_T.process_results(eigen_val, mode='dim', threshold=threshold).to('cpu').numpy()
+            data_lid_list.append(lid)
+    # return the average LID
+    if data is None:
+        return np.mean(reco_lid_list)
+    else:
+        return np.mean(reco_lid_list), np.mean(data_lid_list)
+
