@@ -15,9 +15,13 @@ import numpy as np
 import torch as T
 import torch.linalg as LA
 
+# imort find neighbors
+from sklearn.neighbors import NearestNeighbors
+
+
 # from ssnp import SSNP
 # from sklearn.linear_model import LogisticRegression
-# from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 from tqdm import tqdm
 
@@ -30,10 +34,121 @@ from tqdm import tqdm
 # from utils import GANinv, CGANinv
 # from umap import UMAP
 
+class ID_finder_np:
+    def __init__(self, X_2d, DM, grid=100, sample_size=5, mode='2D'):
+        self.LID_map = None
+        self.DM = DM
+        self.grid = grid
+        self.sample_size = sample_size
+        self.X_2d = X_2d
+        self.LID_eval = self.get_LID(mode=mode)
+
+    def get_LID(self, mode='2D'):
+        assert mode in ['2D', 'nD']
+
+        pixel_w = (self.X_2d[:, 0].max() - self.X_2d[:, 0].min()) / (self.grid-1)
+        pixel_h = (self.X_2d[:, 1].max() - self.X_2d[:, 1].min()) / (self.grid-1)
+
+        xx, yy = np.meshgrid(np.linspace(self.X_2d[:, 0].min(), self.X_2d[:, 0].max(), self.grid),
+                             np.linspace(self.X_2d[:, 1].min(), self.X_2d[:, 1].max(), self.grid))
+        XY = np.c_[xx.ravel(), yy.ravel()]
+
+        data_shape = self.DM.inverse_transform(np.zeros((5 ,2)))
+        n_dim = data_shape.shape[1]
+        LID_eval = np.zeros((XY.shape[0], n_dim))
+
+        if mode == 'nD':
+            self.pixel_inv = self.DM.inverse_transform(XY)
+            self.fnn = NearestNeighbors(n_neighbors=150, algorithm='ball_tree', n_jobs=-1).fit(self.pixel_inv)
+        for i, pix in tqdm(enumerate(XY)):
+            if mode == '2D':
+                subset = self.get_subset_2d(pix, pixel_w, pixel_h, self.sample_size)
+                local_cov = self.compute_eigen(subset, self.DM)
+            elif mode == 'nD':
+                nd_center = self.pixel_inv[i]
+                subdata = self.get_subset_nd(nd_center)
+                # print('~~~~~~~~~~~~~~~~~~~~~~~~~!!!!!!!!!!!!!!!1')
+                # print('shape of subdata:', subdata.shape)
+
+                local_cov = self.compute_eigen(data=subdata)
+
+            LID_eval[i] = local_cov
+        
+        return LID_eval
+
+    def get_subset_2d(self, center, w, h, n_samples):
+        x, y = center
+        lower = [x - w/2, y - h/2]
+        upper = [x + w/2, y + h/2]
+        samples = np.random.uniform(lower, upper, (n_samples, 2))
+        return samples
+    
+    def get_subset_nd(self, nd_center, radius=None):
+        subset_ind = self.fnn.kneighbors(nd_center.reshape(1, -1), return_distance=False)
+        subset = self.pixel_inv[subset_ind].squeeze(0)
+        # scaler = StandardScaler()
+        # subset = scaler.fit_transform(subset)
+        return subset
+
+    @staticmethod
+    def compute_eigen(subset=None, Pinv=None, data=None):
+        if data is None:
+            subset = Pinv.inverse_transform(subset)
+            cov = np.cov(subset, rowvar=False)
+        else:
+            cov = np.cov(data, rowvar=False)
+
+        regularization_factor = 1e-8
+        cov += np.eye(cov.shape[0]) * regularization_factor
+        eigvals = np.linalg.eigvalsh(cov)
+        sum_eigvals = np.sum(eigvals)
+        eigvals = eigvals / sum_eigvals
+        eigvals = np.flip(eigvals)
+        return eigvals
+
+    @staticmethod
+    def process_results(LID_eval, mode='dim', threshold=0.95):
+        if mode == 'dim':
+            cumsum = np.cumsum(LID_eval, axis=1)
+            LID_eval = (cumsum < threshold).sum(axis=1) + 1
+        elif mode == 'percent':
+            LID_eval = np.sum(LID_eval[:, :2], axis=1)
+        else:
+            raise ValueError('mode should be either dim or percent')
+        return LID_eval
+
+    def plot_LID(self, ax=None, cmap='jet', mode='dim', threshold=0.95):
+        LID_map = self.process_results(self.LID_eval, mode, threshold)
+        LID_map = LID_map.reshape(self.grid, self.grid)
+
+        map = np.flip(LID_map, axis=0)
+        if ax is None:
+            if mode == 'dim':
+                self.discrete_matshow(map, cmap=cmap)
+            else: 
+                image = plt.imshow(map, cmap=cmap)
+                plt.colorbar(image)
+            plt.xticks([])
+            plt.yticks([])
+        else:
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if mode == 'dim':
+                ax = self.discrete_matshow(map, cmap=cmap, ax=ax)
+                average = np.mean(map)
+                ax.set_title(f'Average LID: {average:.2f}')
+                ax.text(0.91, 0.05, f'{average:.2f}', color='w', transform=ax.transAxes)
+            else:
+                image = ax.imshow(map, cmap=cmap)
+                plt.colorbar(image, ax=ax)
+                average = np.mean(map)
+                ax.text(0.91, 0.05, f'{average:.2f}', color='white', transform=ax.transAxes)
+
+
 
 
 class ID_finder_T:
-    def __init__(self, X_2d, DM, grid=100, sample_size=5, device=None):
+    def __init__(self, X_2d, DM, grid=100, sample_size=5, device=None, mode='2D', n_neighbors=120):
         self.LID_map = None
         self.DM = DM
         self.grid = grid
@@ -43,10 +158,14 @@ class ID_finder_T:
             self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         else:
             self.device = device
-        self.LID_eval = self.get_LID()
+
+        self.n_neighbors = n_neighbors
+        self.LID_eval = self.get_LID(mode=mode)
         
 
-    def get_LID(self):
+    def get_LID(self, mode='2D'):
+        ## assert mode
+        assert mode in ['2D', 'nD']
 
         pixel_w = (self.X_2d[:, 0].max() - self.X_2d[:, 0].min()) / (self.grid-1)
         pixel_h = (self.X_2d[:, 1].max() - self.X_2d[:, 1].min()) / (self.grid-1)
@@ -56,16 +175,29 @@ class ID_finder_T:
         XY = np.c_[xx.ravel(), yy.ravel()]
 
         data_shape = self.DM.inverse_transform(np.zeros((5 ,2)))
-        LID_eval = T.zeros((XY.shape[0], data_shape.shape[1])).to(self.device)
+        n_dim = data_shape.shape[1]
+        LID_eval = T.zeros((XY.shape[0], n_dim)).to(self.device)
 
+        if mode == 'nD':
+            self.pixel_inv = self.DM.inverse_transform(XY)
+            self.fnn = NearestNeighbors(n_neighbors=self.n_neighbors, algorithm='ball_tree').fit(self.pixel_inv)
         for i, pix in tqdm(enumerate(XY)):
-            subset = self.get_subset(pix, pixel_w, pixel_h, self.sample_size)
-            local_cov = self.compute_eigen(subset, self.DM, self.device)
+            if mode == '2D':
+                subset = self.get_subset_2d(pix, pixel_w, pixel_h, self.sample_size)
+                local_cov = self.compute_eigen(subset, self.DM, self.device)
+            elif mode == 'nD':
+                nd_center = self.pixel_inv[i]
+                subdata = self.get_subset_nd(nd_center)
+                # print('~~~~~~~~~~~~~~~~~~~~~~~~~!!!!!!!!!!!!!!!1')
+                # print('shape of subdata:', subdata.shape)
+                # print('AAAAAAAAAA@@@@@@@@@@~~~~~!!!!!!!!!!!!!!!1')
+                local_cov = self.compute_eigen(data=subdata)
+
             LID_eval[i] = local_cov
         
         return LID_eval
     
-    def get_subset(self, center, w, h, n_samples):
+    def get_subset_2d(self, center, w, h, n_samples):
         """
         Generate `n_samples` uniformly distributed within a square of `size` around `center`.
 
@@ -83,9 +215,22 @@ class ID_finder_T:
 
         samples = np.random.uniform(lower, upper, (n_samples, 2))
         return samples
+    
+    def get_subset_nd(self, nd_center, radius=None):
+        # get a subset of data within a fixed neighborhood
+        subset_ind = self.fnn.kneighbors(nd_center.reshape(1, -1), return_distance=False)
+        subset = self.pixel_inv[subset_ind].squeeze(0)
+        # normalize the subset
+        # print('shape of subset:', subset.shape)
+        # print(subset.min(), subset.max())
+        # scaler = StandardScaler()
+        # subset = scaler.fit_transform(subset)
+
+        return subset
+        
 
     @staticmethod
-    def compute_eigen(subset, Pinv, device=None, data=None):
+    def compute_eigen(subset=None, Pinv=None, device=None, data=None):
         if device is None:
             device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         # to cuda, then compute cov
@@ -98,7 +243,7 @@ class ID_finder_T:
             cov = T.cov(data.T)
 
         ### add regularization
-        regularization_factor = 1e-12
+        regularization_factor = 1e-8
         cov += T.eye(cov.shape[0], device=device) * regularization_factor
         ############################
         # comput eigenvalues

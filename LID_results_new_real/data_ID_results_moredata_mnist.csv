@@ -1,0 +1,4 @@
+Dataset,DM method,Dim,n_sample,n_cluster,Intrinsic Dim (reconstructed),Intrinsic Dim (data)
+mnist,DBM,784,5000,10,12.5,95.0
+mnist,DeepView,784,5000,10,12.8,95.0
+mnist,SDBM,784,5000,10,2.6,95.0

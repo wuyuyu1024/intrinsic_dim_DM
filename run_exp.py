@@ -25,6 +25,7 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 import tensorflow as tf
+import skdim
 
 from map_evaluation import P_wrapper, MapBuilder
 from ssnp import SSNP
@@ -32,7 +33,7 @@ from ssnp import SSNP
 sys.path.append('../GAN_inverse_projection')
 # from utils import GANinv, CGANinv
 from umap import UMAP
-from LID import ID_finder_T, get_data_LID
+from LID import ID_finder_T, get_data_LID, ID_finder_np
 
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -54,32 +55,32 @@ if gpus:
 
 data_dir = '../sdbm/data'
 data_dirs = [
-    'blobs_dim3_n5000_y5',
-    'blobs_dim10_n5000_y5',
-    'blobs_dim30_n5000_y5',
-    'blobs_dim100_n5000_y5',
-    'blobs_dim300_n5000_y5',
+    # 'blobs_dim3_n5000_y5',
+    # 'blobs_dim10_n5000_y5',
+    # 'blobs_dim30_n5000_y5',
+    # 'blobs_dim100_n5000_y5',
+    # 'blobs_dim300_n5000_y5',
 
-    'blobs_dim3_n5000_y2',
-    'blobs_dim10_n5000_y2',
-    'blobs_dim30_n5000_y2',
-    'blobs_dim100_n5000_y2',
-    'blobs_dim300_n5000_y2',
+    # 'blobs_dim3_n5000_y2',
+    # 'blobs_dim10_n5000_y2',
+    # 'blobs_dim30_n5000_y2',
+    # 'blobs_dim100_n5000_y2',
+    # 'blobs_dim300_n5000_y2',
 
-    'blobs_dim3_n5000_y3',
-    'blobs_dim10_n5000_y3',
-    'blobs_dim30_n5000_y3',
-    'blobs_dim100_n5000_y3',
-    'blobs_dim300_n5000_y3',
-
-    'blobs_dim3_n5000_y10',
+    # 'blobs_dim3_n5000_y3',
+    # 'blobs_dim10_n5000_y3',
+    # 'blobs_dim30_n5000_y3',
+    # 'blobs_dim100_n5000_y3',
+    # 'blobs_dim300_n5000_y3',
+    # 'blobs_dim3_n500_y10',
+    # 'blobs_dim3_n5000_y10',
     'blobs_dim10_n5000_y10',
     'blobs_dim30_n5000_y10',
     'blobs_dim100_n5000_y10',
-    # 'blobs_dim300_n1500_y10',
+    # # 'blobs_dim300_n1500_y10',
 
-    # 'har', 
-    # 'mnist', 
+    'har', 
+    'mnist', 
     # 'fashionmnist', 
     # 'reuters', 
     ]
@@ -106,7 +107,7 @@ for d in data_dirs:
     if 'blob' in d:
         train_size = dim = int(d.split('_')[2][1:])
     else:
-        train_size = min(int(n_samples*0.9), 2000)
+        train_size = min(int(n_samples*0.9), 5000)
     test_size = 5000 # inverse
     
     dataset =\
@@ -122,21 +123,22 @@ for d in data_dirs:
 
 
 projectors = {
-            'DBM_orig_torch': P_wrapper(NNinv_Torch=1, ),
-            # 'DeepView': P_wrapper(deepview=1),
+            'SDBM' : P_wrapper(ssnp=1),
+            'DBM': P_wrapper(NNinv_Torch=1, ),
+            'DeepView': P_wrapper(deepview=1),
             # 'DBM_orig_keras': P_wrapper(NNinv_Keras=1),
-            'SSNP' : P_wrapper(ssnp=1),
-            'SSNP_3' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=3),
-            'SSNP_10' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=10),
-            'SSNP_30' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=30),
             
-            'DBM_3' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3),
-            'DBM_10' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10),
-            'DBM_30' : P_wrapper(NNinv_Torch=1, bottleneck_dim=30),
+            # 'SSNP_3' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=3),
+            # 'SSNP_10' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=10),
+            # 'SSNP_30' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=30),
+            
+            # 'DBM_3' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3),
+            # 'DBM_10' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10),
+            # 'DBM_30' : P_wrapper(NNinv_Torch=1, bottleneck_dim=30),
 
-            'DBM_3_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3, P='PCA'),
-            'DBM_10_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10, P='PCA'),
-            'DBM_30_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=30, P='PCA'),
+            # 'DBM_3_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3, P='PCA'),
+            # 'DBM_10_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10, P='PCA'),
+            # 'DBM_30_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=30, P='PCA'),
 
             # 'DBM_3_tSNE' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3, P='tSNE'),
             # 'DBM_10_tSNE' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10, P='tSNE'),
@@ -147,7 +149,7 @@ projectors = {
 
 ###########################
 #SAVE DIR
-save_dir = './LID_results'
+save_dir = './LID_results_new_grid500'
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
@@ -165,13 +167,19 @@ for data_name, dataset in datasets_real.items():
     clf = LogisticRegression(max_iter=1000, random_state=420)
     clf.fit(X_train, y_train)
     print(f"training accuracy: {clf.score(X_train, y_train)}")
-    print(f"test accuracy: {clf.score(X_test, y_test)}")
+    # print(f"test accuracy: {clf.score(X_test, y_test)}")
 
 
     for proj_name, proj in projectors.items():
         print(f"processing {data_name} with {proj_name}")
-
-        # check bottleneck dim and the data dim
+        # print('='*20)   
+        # ########## LID
+        # lpca = skdim.id.lPCA(ver="Fan").fit_pw(X_train,
+        #                       n_neighbors = 100,
+        #                       n_jobs = -1)
+        # print(lpca.dimension_pw_.shape)
+        # print(np.mean(lpca.dimension_pw_))
+        # # check bottleneck dim and the data dim
         if 'SSNP' not in proj_name:
             bottleneck_dim = proj.bottleneck_dim
             if bottleneck_dim > input_dim:
@@ -189,26 +197,62 @@ for data_name, dataset in datasets_real.items():
         except:
             X_train_2d = proj.transform(X_train)
             print(proj_name, X_train_2d.shape)
+        ##########################################
+        X_recon = proj.inverse_transform(X_train_2d)
+        #         ########## LID
+        # lpca = skdim.id.lPCA(ver="Fan").fit_pw(X_recon,
+        #                       n_neighbors = 200,
+        #                       n_jobs = -1)
+        # print(lpca.dimension_pw_.shape)
+        # print(np.mean(lpca.dimension_pw_))
+        # print('='*20)
 
-        # map_builder = MapBuilder(clf, proj, X_train, y_train, grid=150)
-        # alpha, labels = map_builder.get_prob_map()
+        # xx, yy = np.meshgrid(np.linspace(X_train_2d[:, 0].min(), X_train_2d[:, 0].max(), 200),
+        #                     np.linspace(X_train_2d[:, 1].min(), X_train_2d[:, 1].max(), 200))
+        # grid = np.c_[xx.ravel(), yy.ravel()]
+        # inv_grid = proj.inverse_transform(grid)
+        # lid_map1 = skdim.id.lPCA().fit_pw( inv_grid, n_neighbors = 200,n_jobs=-1)
+        # lid_map2 = skdim.id.lPCA(ver="Fan").fit_pw( inv_grid, n_neighbors = 200,n_jobs=-1)
+
+        # map1 = lid_map1.dimension_pw_
+        # map2 = lid_map2.dimension_pw_
+
+        # map1 = map1.reshape(xx.shape)
+        # map2 = map2.reshape(xx.shape)   
+
+        # fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+        # ax[0].contourf(xx, yy, map1, cmap='jet')
+        # ax[1].contourf(xx, yy, map2, cmap='jet')
+        # cbar1 = fig.colorbar(ax[0].contourf(xx, yy, map1, cmap='jet'), ax=ax[0])
+        # cbar2 = fig.colorbar(ax[1].contourf(xx, yy, map2, cmap='jet'), ax=ax[1])
+        # cbar1.ax.set_ylabel('LID_dfualt')
+        # cbar2.ax.set_ylabel('LID_FAN')
+        # plt.savefig(f'./figures/{data_name}_{proj_name}_LID.png')
+        ########################################
+
+        map_builder = MapBuilder(clf, proj, X_train, y_train, grid=200)
+        alpha, labels = map_builder.get_prob_map()
         # GM = map_builder.get_gradient_map()
-        # if 'blob' in data_name:
-        #     sampling_size = input_dim + 10
-        # else:
-        #     sampling_size = 30
-        # LID_finder = ID_finder_T(X_train_2d, proj, grid=100, sample_size=sampling_size, device='cpu')
-        # LID_evalues = LID_finder.LID_eval.to('cpu').numpy()
+        GM = np.zeros(10)
+        if 'blob' in data_name:
+            sampling_size = input_dim + 10
+        else:
+            sampling_size = 30
+        LID_finder = ID_finder_T(X_train_2d, proj, grid=500, sample_size=sampling_size, device='cuda', mode='nD', n_neighbors=120)
+        LID_evalues = LID_finder.LID_eval.to('cpu').numpy()
+        # LID_evalues = ID_finder_np(X_train_2d, proj, grid=200, sample_size=sampling_size, mode='nD')
 
-        # ### save LID_evalues, (alpha, labels), GM, X_train_2d, y_train separately
-        # save_path = os.path.join(save_dir, f"{data_name}_{proj_name}.npz")
-        # np.savez(save_path, LID_evalues=LID_evalues, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train)
-        # print(f"saved to {save_path}")
+        ### save LID_evalues, (alpha, labels), GM, X_train_2d, y_train separately
+        save_path = os.path.join(save_dir, f"{data_name}_{proj_name}.npz")
+        np.savez(save_path, LID_evalues=LID_evalues, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train, X_train=X_train, X_recon=X_recon)
+        print(f"saved to {save_path}")
         
-        rec_ID, data_ID = get_data_LID(X_train_2d, y_train, proj, device='cpu', data=X_train)
-        df = df.append({'Dataset': data_name, 'DM method': proj_name, 'Dim': input_dim ,'n_sample': n_sample, 'n_cluster': n_classes, 'Intrinsic Dim (reconstructed)': rec_ID, 'Intrinsic Dim (data)': data_ID}, ignore_index=True)
 
-df.to_csv(os.path.join(save_dir, 'data_ID_results_moredata.csv'), index=False)
+        ##### another ID 
+#         rec_ID, data_ID = get_data_LID(X_train_2d, y_train, proj, device='cpu', data=X_train)
+#         df = df._append({'Dataset': data_name, 'DM method': proj_name, 'Dim': input_dim ,'n_sample': n_sample, 'n_cluster': n_classes, 'Intrinsic Dim (reconstructed)': rec_ID, 'Intrinsic Dim (data)': data_ID}, ignore_index=True)
+
+# df.to_csv(os.path.join(save_dir, 'data_ID_results_moredata_har.csv'), index=False)
 
 
 
