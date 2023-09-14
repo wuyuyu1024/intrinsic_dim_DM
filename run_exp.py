@@ -33,7 +33,7 @@ from ssnp import SSNP
 sys.path.append('../GAN_inverse_projection')
 # from utils import GANinv, CGANinv
 from umap import UMAP
-from LID import ID_finder_T, get_data_LID, ID_finder_np
+from LID import ID_finder_T, get_data_LID, get_eigen_general , ID_finder_np
 
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -74,13 +74,16 @@ data_dirs = [
     # 'blobs_dim300_n5000_y3',
     # 'blobs_dim3_n500_y10',
     # 'blobs_dim3_n5000_y10',
-    'blobs_dim10_n5000_y10',
-    'blobs_dim30_n5000_y10',
-    'blobs_dim100_n5000_y10',
+    # 'blobs_dim10_n5000_y10',
+
+    # 'blobs_dim30_n5000_y10',
+    # 'blobs_dim60_n5000_y10',
+    # 'blobs_dim90_n5000_y10',
+
     # # 'blobs_dim300_n1500_y10',
 
     'har', 
-    'mnist', 
+    # 'mnist', 
     # 'fashionmnist', 
     # 'reuters', 
     ]
@@ -123,8 +126,8 @@ for d in data_dirs:
 
 
 projectors = {
-            'SDBM' : P_wrapper(ssnp=1),
-            'DBM': P_wrapper(NNinv_Torch=1, ),
+            # 'SDBM' : P_wrapper(ssnp=1),
+            # 'DBM': P_wrapper(NNinv_Torch=1, ),
             'DeepView': P_wrapper(deepview=1),
             # 'DBM_orig_keras': P_wrapper(NNinv_Keras=1),
             
@@ -132,9 +135,11 @@ projectors = {
             # 'SSNP_10' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=10),
             # 'SSNP_30' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=30),
             
-            # 'DBM_3' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3),
+            # 'DBM_2' : P_wrapper(NNinv_Torch=1, bottleneck_dim=2),
+            # 'DBM_5' : P_wrapper(NNinv_Torch=1, bottleneck_dim=5),
             # 'DBM_10' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10),
-            # 'DBM_30' : P_wrapper(NNinv_Torch=1, bottleneck_dim=30),
+            # 'DBM_15' : P_wrapper(NNinv_Torch=1, bottleneck_dim=15),
+            # 'DBM_20' : P_wrapper(NNinv_Torch=1, bottleneck_dim=20),
 
             # 'DBM_3_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=3, P='PCA'),
             # 'DBM_10_PCA' : P_wrapper(NNinv_Torch=1, bottleneck_dim=10, P='PCA'),
@@ -168,7 +173,9 @@ for data_name, dataset in datasets_real.items():
     clf.fit(X_train, y_train)
     print(f"training accuracy: {clf.score(X_train, y_train)}")
     # print(f"test accuracy: {clf.score(X_test, y_test)}")
-
+    data_eigen, data_id = get_eigen_general(X_train)
+    save_path = os.path.join(save_dir, f"{data_name}_data_eigen.npz")
+    np.savez(save_path, data_eigen=data_eigen)
 
     for proj_name, proj in projectors.items():
         print(f"processing {data_name} with {proj_name}")
@@ -238,9 +245,9 @@ for data_name, dataset in datasets_real.items():
             sampling_size = input_dim + 10
         else:
             sampling_size = 30
-        LID_finder = ID_finder_T(X_train_2d, proj, grid=500, sample_size=sampling_size, device='cuda', mode='nD', n_neighbors=120)
-        LID_evalues = LID_finder.LID_eval.to('cpu').numpy()
-        # LID_evalues = ID_finder_np(X_train_2d, proj, grid=200, sample_size=sampling_size, mode='nD')
+        # LID_finder = ID_finder_T(X_train_2d, proj, grid=500, sample_size=sampling_size, device='cuda', mode='nD', n_neighbors=120)
+        # LID_evalues = LID_finder.LID_eval.to('cpu').numpy()
+        LID_evalues = ID_finder_np(X_train_2d, proj, grid=200, sample_size=sampling_size, mode='nD')
 
         ### save LID_evalues, (alpha, labels), GM, X_train_2d, y_train separately
         save_path = os.path.join(save_dir, f"{data_name}_{proj_name}.npz")
@@ -248,9 +255,23 @@ for data_name, dataset in datasets_real.items():
         print(f"saved to {save_path}")
         
 
-        ##### another ID 
-#         rec_ID, data_ID = get_data_LID(X_train_2d, y_train, proj, device='cpu', data=X_train)
-#         df = df._append({'Dataset': data_name, 'DM method': proj_name, 'Dim': input_dim ,'n_sample': n_sample, 'n_cluster': n_classes, 'Intrinsic Dim (reconstructed)': rec_ID, 'Intrinsic Dim (data)': data_ID}, ignore_index=True)
+        # ##### another ID 
+        # # rec_ID, data_ID = get_data_LID(X_train_2d, y_train, proj, device='cpu', data=X_train)
+        # reco_eigen, reco_id = get_eigen_general(X_recon)
+        # save_path = os.path.join(save_dir, f"{data_name}_{proj_name}_recon_eigen.npz")
+        # np.savez(save_path, reco_eigen=reco_eigen)
+        # ###
+        # # get ID
+        # if 'blob' in data_name:
+        #     save_data_name = 'Blobs' + str(input_dim) + 'dims'
+
+        # rec_id_mean = np.mean(reco_id)
+        # data_id_mean = np.mean(data_id)
+        # print(f"reconstructed ID: {rec_id_mean}")
+        # print(f"data ID: {rec_id_mean}")
+        # df = df._append({'Dataset': save_data_name, 'DM method': proj_name, 'Dim': input_dim ,'n_sample': n_sample, 'n_cluster': n_classes, 'Esimated ID (reco)': rec_id_mean, 'Esimated ID (data)': data_id_mean,
+        #                  'bottleneck_dim': int(proj_name.split('_')[-1])}, ignore_index=True)
+        # df.to_csv(os.path.join(save_dir, 'data_ID_bigneck.csv'), index=False)
 
 # df.to_csv(os.path.join(save_dir, 'data_ID_results_moredata_har.csv'), index=False)
 

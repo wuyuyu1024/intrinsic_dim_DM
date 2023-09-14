@@ -98,7 +98,7 @@ class ID_finder_np:
         else:
             cov = np.cov(data, rowvar=False)
 
-        regularization_factor = 1e-8
+        regularization_factor = 1e-12
         cov += np.eye(cov.shape[0]) * regularization_factor
         eigvals = np.linalg.eigvalsh(cov)
         sum_eigvals = np.sum(eigvals)
@@ -243,7 +243,7 @@ class ID_finder_T:
             cov = T.cov(data.T)
 
         ### add regularization
-        regularization_factor = 1e-8
+        regularization_factor = 1e-10
         cov += T.eye(cov.shape[0], device=device) * regularization_factor
         ############################
         # comput eigenvalues
@@ -255,18 +255,28 @@ class ID_finder_T:
         return eigvals
 
     @staticmethod
-    def process_results(LID_eval, mode='dim', threshold=0.95):
-        if mode == 'dim':
+    def process_results(LID_eval, mode='TV', threshold=0.95):
+        if mode == 'TV':
             # how many dimensions are needed to explain 95% of the variance    
             cumsum = T.cumsum(LID_eval, dim=1)
             LID_eval = (cumsum < threshold).sum(dim=1) + 1
-
+        elif mode == 'MV':
+            ## number of dimnesions larger than 5% of the variance
+            print(LID_eval)
+            LID_eval = (LID_eval >= (1-threshold)).sum(dim=1) 
+            # print(LID_eval)
+        elif mode == 'VR':
+            ## compute the variance ratio
+            delta_v = LID_eval[:, ] - T.concatenate((LID_eval[:, 1:], T.zeros((LID_eval.shape[0], 1))), dim=1)
+            total_dv = T.sum(delta_v, dim=1)
+            norm_delta_v = delta_v/total_dv.reshape(-1, 1)
+            cumsum = T.cumsum(norm_delta_v, dim=1)
+            LID_eval = (cumsum < threshold).sum(dim=1) + 1   
         elif mode == 'percent':
             LID_eval = T.sum(LID_eval[:, :2], dim=1)
         else:
-            raise ValueError('mode should be either dim or percent')
-        return LID_eval
-       
+            raise ValueError('mode should be either the above 4: TV, MV, VR, percent ')
+        return LID_eval   
             
 
     def plot_LID(self,  ax=None,  cmap='jet', mode='dim', threshold=0.95):
@@ -274,33 +284,28 @@ class ID_finder_T:
         LID_map = LID_map.reshape(self.grid, self.grid).to('cpu').numpy()
 
         map = np.flip(LID_map, axis=0)
-
         if ax is None:
-            # cbar of this plot
-            if mode == 'dim':
-                self.discrete_matshow(map, cmap=cmap)
-            else: 
-                image = plt.imshow(map, cmap=cmap, norm=MidpointNormalize(midpoint=0.95, vmax=1)) 
-                # continuous colorbar
+            if mode == 'percent': 
+                image = plt.imshow(map, cmap=cmap)
                 plt.colorbar(image)
-            # not show the ticks
+            else:
+                self.discrete_matshow(map, cmap=cmap)
             plt.xticks([])
             plt.yticks([])
-
         else:
             ax.set_xticks([])
             ax.set_yticks([])
-            if mode == 'dim':
+            
+            if mode == 'percent':
+                image = ax.imshow(map, cmap=cmap)
+                plt.colorbar(image, ax=ax)
+                average = np.mean(map)
+                ax.text(0.91, 0.05, f'{average:.2f}', color='white', transform=ax.transAxes)
+            else:
                 ax = self.discrete_matshow(map, cmap=cmap, ax=ax)
                 average = np.mean(map)
                 ax.set_title(f'Average LID: {average:.2f}')
                 ax.text(0.91, 0.05, f'{average:.2f}', color='w', transform=ax.transAxes)
-            else:
-                # continuous colorbar
-                image = ax.imshow(map, cmap=cmap, norm=MidpointNormalize(midpoint=0.95, vmax=1))
-                plt.colorbar(image, ax=ax)
-                average = np.mean(map)
-                ax.text(0.91, 0.05, f'{average:.2f}', color='white', transform=ax.transAxes)
 
             
     def discrete_matshow(self, data, cmap, ax=None):
@@ -356,4 +361,22 @@ def get_data_LID(X_2d, y, Pinv, threshold=0.95, device='cpu', data=None):
         return np.mean(reco_lid_list)
     else:
         return np.mean(reco_lid_list), np.mean(data_lid_list)
+    
+def get_eigen_general(X):
+    fnn = NearestNeighbors(n_neighbors=100, algorithm='ball_tree', n_jobs=-1).fit(X)
+    eigen_list = []
+    id_list = []
+    for i in tqdm(X):
+        subset_ind = fnn.kneighbors(i.reshape(1, -1), return_distance=False)
+        subset = X[subset_ind].squeeze(0)
+        dev = T.device('cuda' if T.cuda.is_available() else 'cpu')
+        # cov = ID_finder_T.compute_eigen(data=subset, device=dev)
+        # eigen_list.append(cov.to('cpu').numpy())
+        cov = ID_finder_np.compute_eigen(data=subset)
+        eigen_list.append(cov)
+
+    eigen_list = np.array(eigen_list)
+    lid_list = ID_finder_T.process_results(T.tensor(eigen_list).to(dev), mode='TV', threshold=0.95).to('cpu').numpy()
+    return eigen_list, lid_list
+        
 
