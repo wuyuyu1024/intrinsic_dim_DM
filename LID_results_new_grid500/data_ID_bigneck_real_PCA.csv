@@ -1,0 +1,11 @@
+Dataset,DM method,Dim,n_sample,n_cluster,Intrinsic Dim (reconstructed),Intrinsic Dim (data),Esimated ID (reco),Esimated ID (data),bottleneck_dim
+mnist,DBM_PCA_2,784,5000,10,,,3.0374,48.1428,2.0
+mnist,DBM_PCA_5,784,5000,10,,,17.1718,48.1428,5.0
+mnist,DBM_PCA_10,784,5000,10,,,32.5414,48.1428,10.0
+mnist,DBM_PCA_15,784,5000,10,,,38.524,48.1428,15.0
+mnist,DBM_PCA_20,784,5000,10,,,40.1398,48.1428,20.0
+har,DBM_PCA_2,561,5000,6,,,2.6054,49.589,2.0
+har,DBM_PCA_5,561,5000,6,,,4.3744,49.589,5.0
+har,DBM_PCA_10,561,5000,6,,,5.436,49.589,10.0
+har,DBM_PCA_15,561,5000,6,,,5.5982,49.589,15.0
+har,DBM_PCA_20,561,5000,6,,,5.4412,49.589,20.0
