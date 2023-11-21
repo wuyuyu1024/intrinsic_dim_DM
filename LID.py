@@ -59,7 +59,7 @@ class ID_finder_np:
 
         if mode == 'nD':
             self.pixel_inv = self.DM.inverse_transform(XY)
-            self.fnn = NearestNeighbors(n_neighbors=150, algorithm='ball_tree', n_jobs=-1).fit(self.pixel_inv)
+            self.fnn = NearestNeighbors(n_neighbors=120, algorithm='ball_tree', n_jobs=-1).fit(self.pixel_inv)
         for i, pix in tqdm(enumerate(XY)):
             if mode == '2D':
                 subset = self.get_subset_2d(pix, pixel_w, pixel_h, self.sample_size)
@@ -243,7 +243,7 @@ class ID_finder_T:
             cov = T.cov(data.T)
 
         ### add regularization
-        regularization_factor = 1e-10
+        regularization_factor = 1e-8
         cov += T.eye(cov.shape[0], device=device) * regularization_factor
         ############################
         # comput eigenvalues
@@ -256,13 +256,15 @@ class ID_finder_T:
 
     @staticmethod
     def process_results(LID_eval, mode='TV', threshold=0.95):
+        if type(LID_eval) == np.ndarray:
+            LID_eval = T.tensor(LID_eval)
         if mode == 'TV':
             # how many dimensions are needed to explain 95% of the variance    
             cumsum = T.cumsum(LID_eval, dim=1)
             LID_eval = (cumsum < threshold).sum(dim=1) + 1
         elif mode == 'MV':
             ## number of dimnesions larger than 5% of the variance
-            print(LID_eval)
+            # print(LID_eval)
             LID_eval = (LID_eval >= (1-threshold)).sum(dim=1) 
             # print(LID_eval)
         elif mode == 'VR':
@@ -362,21 +364,23 @@ def get_data_LID(X_2d, y, Pinv, threshold=0.95, device='cpu', data=None):
     else:
         return np.mean(reco_lid_list), np.mean(data_lid_list)
     
-def get_eigen_general(X):
-    fnn = NearestNeighbors(n_neighbors=100, algorithm='ball_tree', n_jobs=-1).fit(X)
+def get_eigen_general(X, n_neighbors=100, GPU=False, mode='TV', threshold=0.95):
+    fnn = NearestNeighbors(n_neighbors=n_neighbors, algorithm='ball_tree', n_jobs=-1).fit(X)
     eigen_list = []
     id_list = []
     for i in tqdm(X):
         subset_ind = fnn.kneighbors(i.reshape(1, -1), return_distance=False)
         subset = X[subset_ind].squeeze(0)
         dev = T.device('cuda' if T.cuda.is_available() else 'cpu')
-        # cov = ID_finder_T.compute_eigen(data=subset, device=dev)
-        # eigen_list.append(cov.to('cpu').numpy())
-        cov = ID_finder_np.compute_eigen(data=subset)
-        eigen_list.append(cov)
+        if GPU:
+            cov = ID_finder_T.compute_eigen(data=subset, device=dev)
+            eigen_list.append(cov.to('cpu').numpy())
+        else:
+            cov = ID_finder_np.compute_eigen(data=subset)
+            eigen_list.append(cov)
 
     eigen_list = np.array(eigen_list)
-    lid_list = ID_finder_T.process_results(T.tensor(eigen_list).to(dev), mode='TV', threshold=0.95).to('cpu').numpy()
+    lid_list = ID_finder_T.process_results(T.tensor(eigen_list).to(dev), mode=mode, threshold=threshold).to('cpu').numpy()
     return eigen_list, lid_list
         
 

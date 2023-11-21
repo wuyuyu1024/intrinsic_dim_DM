@@ -247,7 +247,7 @@ for data_name, dataset in datasets_real.items():
             sampling_size = 30
         # LID_finder = ID_finder_T(X_train_2d, proj, grid=500, sample_size=sampling_size, device='cuda', mode='nD', n_neighbors=120)
         # LID_evalues = LID_finder.LID_eval.to('cpu').numpy()
-        LID_evalues = ID_finder_np(X_train_2d, proj, grid=200, sample_size=sampling_size, mode='nD')
+        LID_evalues = ID_finder_np(X_train_2d, proj, grid=500, sample_size=sampling_size, mode='nD').LID_eval
 
         ### save LID_evalues, (alpha, labels), GM, X_train_2d, y_train separately
         save_path = os.path.join(save_dir, f"{data_name}_{proj_name}.npz")
