@@ -1,3 +1,4 @@
 *.npz
 *.npy
 __pycache__/*
+__pycache__/LID.cpython-310.pyc

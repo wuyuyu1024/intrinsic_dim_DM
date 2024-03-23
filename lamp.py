@@ -263,8 +263,11 @@ class Pinv_ilamp:
         self.data = X
         self.data_proj = X_proj
         
-    def transform(self, p, **kwargs):
-        return ilamp(self.data, self.data_proj, p, k=self.k, pre_kdtree=self.pre_kdtree)
+    def transform(self, p, mini_batch=2000, **kwargs):
+        results = []
+        for i in range(0, p.shape[0], mini_batch):
+            results.append(ilamp(self.data, self.data_proj, p[i:i+mini_batch], k=self.k, pre_kdtree=self.pre_kdtree))
+        return np.concatenate(results, axis=0)
     
     def inverse_transform(self, p, **kwargs):
         return self.transform(p)

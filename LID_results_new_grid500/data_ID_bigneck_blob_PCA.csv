@@ -1,0 +1,16 @@
+Dataset,DM method,Dim,n_sample,n_cluster,Intrinsic Dim (reconstructed),Intrinsic Dim (data),Esimated ID (reco),Esimated ID (data),bottleneck_dim
+Blobs30dims,DBM_PCA_2,30,5000,10,,,2.0188,25.8672,2.0
+Blobs30dims,DBM_PCA_5,30,5000,10,,,5.0,25.8672,5.0
+Blobs30dims,DBM_PCA_10,30,5000,10,,,9.392,25.8672,10.0
+Blobs30dims,DBM_PCA_15,30,5000,10,,,13.8962,25.8672,15.0
+Blobs30dims,DBM_PCA_20,30,5000,10,,,17.928,25.8672,20.0
+Blobs60dims,DBM_PCA_2,60,5000,10,,,2.0,44.6234,2.0
+Blobs60dims,DBM_PCA_5,60,5000,10,,,5.9224,44.6234,5.0
+Blobs60dims,DBM_PCA_10,60,5000,10,,,11.3522,44.6234,10.0
+Blobs60dims,DBM_PCA_15,60,5000,10,,,26.841,44.6234,15.0
+Blobs60dims,DBM_PCA_20,60,5000,10,,,23.1388,44.6234,20.0
+Blobs90dims,DBM_PCA_2,90,5000,10,,,2.0008,57.5464,2.0
+Blobs90dims,DBM_PCA_5,90,5000,10,,,4.6026,57.5464,5.0
+Blobs90dims,DBM_PCA_10,90,5000,10,,,7.36,57.5464,10.0
+Blobs90dims,DBM_PCA_15,90,5000,10,,,25.452,57.5464,15.0
+Blobs90dims,DBM_PCA_20,90,5000,10,,,31.604,57.5464,20.0

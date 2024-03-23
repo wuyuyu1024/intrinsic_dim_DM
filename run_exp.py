@@ -3,6 +3,7 @@ import sys
 sys.path.append('../sdbm/code')
 sys.path.append('../DeepView/deepview')
 sys.path.append('../dbm_evaluation')
+sys.path.append('../InverseProjections')
 # import make blobs
 from sklearn.datasets import make_blobs
 # import matplotlib
@@ -22,10 +23,14 @@ from sklearn.model_selection import train_test_split
 
 from tqdm import tqdm
 
+from lamp import Pinv_ilamp
+# from NNinv import NNinv_torch
+from rbf_inv import RBFinv
+
 import warnings
 warnings.filterwarnings('ignore')
 import tensorflow as tf
-import skdim
+# import skdim
 
 from map_evaluation import P_wrapper, MapBuilder
 from ssnp import SSNP
@@ -34,6 +39,7 @@ sys.path.append('../GAN_inverse_projection')
 # from utils import GANinv, CGANinv
 from umap import UMAP
 from LID import ID_finder_T, get_data_LID, get_eigen_general , ID_finder_np
+from gradient_map import get_gradient_map
 
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -51,6 +57,25 @@ if gpus:
     except RuntimeError as e:
         # Virtual devices must be set before GPUs have been initialized
         print(e)
+
+
+class Simple_P_wrapper:
+    def __init__(self, P, Pinv, bottleneck_dim=2):
+        self.P = P
+        self.Pinv = Pinv
+        self.bottleneck_dim = bottleneck_dim
+    def __call__(self, x):
+        return self.P(x)
+    def transform(self, x):
+        return self.P.transform(x)
+    def inverse_transform(self, x):
+        return self.Pinv.transform(x)
+
+    def fit(self, x, y=None, clf=None):
+        # self.P.fit(x)
+        self.X2d = self.P.fit_transform(x)
+        self.Pinv.fit(self.X2d, x )
+        return self
 
 
 data_dir = '../sdbm/data'
@@ -75,15 +100,15 @@ data_dirs = [
     # 'blobs_dim3_n500_y10',
     # 'blobs_dim3_n5000_y10',
     # 'blobs_dim10_n5000_y10',
-
+    
     # 'blobs_dim30_n5000_y10',
-    # 'blobs_dim60_n5000_y10',
-    # 'blobs_dim90_n5000_y10',
+    # # 'blobs_dim60_n5000_y10',
+    # 'blobs_dim100_n5000_y10',
 
     # # 'blobs_dim300_n1500_y10',
 
     'har', 
-    # 'mnist', 
+    'mnist', 
     # 'fashionmnist', 
     # 'reuters', 
     ]
@@ -128,7 +153,9 @@ for d in data_dirs:
 projectors = {
             # 'SDBM' : P_wrapper(ssnp=1),
             # 'DBM': P_wrapper(NNinv_Torch=1, ),
-            'DeepView': P_wrapper(deepview=1),
+            # 'DeepView': P_wrapper(deepview=1),
+            'UMAP+iLAMP': Simple_P_wrapper(UMAP(random_state=42), Pinv_ilamp()),
+            'UMAP+RBF': Simple_P_wrapper(UMAP(random_state=42), RBFinv()),
             # 'DBM_orig_keras': P_wrapper(NNinv_Keras=1),
             
             # 'SSNP_3' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=3),
@@ -154,7 +181,7 @@ projectors = {
 
 ###########################
 #SAVE DIR
-save_dir = './LID_results_new_grid500'
+save_dir = './LID_results_new_grid500_GM'
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
@@ -173,9 +200,9 @@ for data_name, dataset in datasets_real.items():
     clf.fit(X_train, y_train)
     print(f"training accuracy: {clf.score(X_train, y_train)}")
     # print(f"test accuracy: {clf.score(X_test, y_test)}")
-    data_eigen, data_id = get_eigen_general(X_train)
-    save_path = os.path.join(save_dir, f"{data_name}_data_eigen.npz")
-    np.savez(save_path, data_eigen=data_eigen)
+    # data_eigen, data_id = get_eigen_general(X_train)
+    # save_path = os.path.join(save_dir, f"{data_name}_data_eigen.npz")
+    # np.savez(save_path, data_eigen=data_eigen)
 
     for proj_name, proj in projectors.items():
         print(f"processing {data_name} with {proj_name}")
@@ -235,12 +262,20 @@ for data_name, dataset in datasets_real.items():
         # cbar1.ax.set_ylabel('LID_dfualt')
         # cbar2.ax.set_ylabel('LID_FAN')
         # plt.savefig(f'./figures/{data_name}_{proj_name}_LID.png')
-        ########################################
 
-        map_builder = MapBuilder(clf, proj, X_train, y_train, grid=200)
-        alpha, labels = map_builder.get_prob_map()
-        # GM = map_builder.get_gradient_map()
-        GM = np.zeros(10)
+        ########################################OLD 
+        # map_builder = MapBuilder(clf, proj, X_train, y_train, grid=200)
+        # alpha, labels = map_builder.get_prob_map()
+        # # GM = map_builder.get_gradient_map()
+        # GM = np.zeros(10)
+        ##########################################NEW for gradient map
+        GM, Iinv = get_gradient_map(projecters=proj, x2d=X_train_2d, grid=200)
+        # print(GM.shape)
+        probs = clf.predict_proba(Iinv)
+        alpha = np.amax(probs, axis=1)
+        labels = probs.argmax(axis=1)
+
+        ########################
         if 'blob' in data_name:
             sampling_size = input_dim + 10
         else:
