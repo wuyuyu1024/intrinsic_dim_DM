@@ -230,7 +230,7 @@ class ID_finder_T:
         
 
     @staticmethod
-    def compute_eigen(subset=None, Pinv=None, device=None, data=None):
+    def compute_eigen(subset=None, Pinv=None, device=None, data=None, normalize=True):
         if device is None:
             device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         # to cuda, then compute cov
@@ -248,8 +248,9 @@ class ID_finder_T:
         ############################
         # comput eigenvalues
         eigvals = LA.eigvalsh(cov)
-        sum_eigvals = T.sum(eigvals)
-        eigvals = eigvals / sum_eigvals
+        if normalize:
+            sum_eigvals = T.sum(eigvals)
+            eigvals = eigvals / sum_eigvals
         # reverse the order
         eigvals = T.flip(eigvals, dims=[0])        
         return eigvals
@@ -364,7 +365,7 @@ def get_data_LID(X_2d, y, Pinv, threshold=0.95, device='cpu', data=None):
     else:
         return np.mean(reco_lid_list), np.mean(data_lid_list)
     
-def get_eigen_general(X, n_neighbors=100, GPU=False, mode='TV', threshold=0.95):
+def get_eigen_general(X, n_neighbors=100, GPU=False, mode='TV', threshold=0.95, normalize=True):
     fnn = NearestNeighbors(n_neighbors=n_neighbors, algorithm='ball_tree', n_jobs=-1).fit(X)
     eigen_list = []
     id_list = []
@@ -373,14 +374,18 @@ def get_eigen_general(X, n_neighbors=100, GPU=False, mode='TV', threshold=0.95):
         subset = X[subset_ind].squeeze(0)
         dev = T.device('cuda' if T.cuda.is_available() else 'cpu')
         if GPU:
-            cov = ID_finder_T.compute_eigen(data=subset, device=dev)
+            cov = ID_finder_T.compute_eigen(data=subset, device=dev, normalize=normalize)
             eigen_list.append(cov.to('cpu').numpy())
         else:
             cov = ID_finder_np.compute_eigen(data=subset)
             eigen_list.append(cov)
 
     eigen_list = np.array(eigen_list)
-    lid_list = ID_finder_T.process_results(T.tensor(eigen_list).to(dev), mode=mode, threshold=threshold).to('cpu').numpy()
+    if normalize:
+        lid_list = ID_finder_T.process_results(T.tensor(eigen_list).to(dev), mode=mode, threshold=threshold).to('cpu').numpy()
+    else:
+        ## No. eigen that > 1 
+        lid_list = (eigen_list > 1).sum(axis=1)
     return eigen_list, lid_list
         
 

@@ -102,13 +102,13 @@ data_dirs = [
     # 'blobs_dim10_n5000_y10',
     
     # 'blobs_dim30_n5000_y10',
-    # # 'blobs_dim60_n5000_y10',
+    'blobs_dim60_n5000_y10',
     # 'blobs_dim100_n5000_y10',
 
     # # 'blobs_dim300_n1500_y10',
 
-    'har', 
-    'mnist', 
+    # 'har', 
+    # 'mnist', 
     # 'fashionmnist', 
     # 'reuters', 
     ]
@@ -151,9 +151,9 @@ for d in data_dirs:
 
 
 projectors = {
-            # 'SDBM' : P_wrapper(ssnp=1),
-            # 'DBM': P_wrapper(NNinv_Torch=1, ),
-            # 'DeepView': P_wrapper(deepview=1),
+            'SDBM' : P_wrapper(ssnp=1),
+            'DBM': P_wrapper(NNinv_Torch=1, ),
+            'DeepView': P_wrapper(deepview=1),
             'UMAP+iLAMP': Simple_P_wrapper(UMAP(random_state=42), Pinv_ilamp()),
             'UMAP+RBF': Simple_P_wrapper(UMAP(random_state=42), RBFinv()),
             # 'DBM_orig_keras': P_wrapper(NNinv_Keras=1),
@@ -269,7 +269,7 @@ for data_name, dataset in datasets_real.items():
         # # GM = map_builder.get_gradient_map()
         # GM = np.zeros(10)
         ##########################################NEW for gradient map
-        GM, Iinv = get_gradient_map(projecters=proj, x2d=X_train_2d, grid=200)
+        GM, Iinv = get_gradient_map(projecters=proj, x2d=X_train_2d, grid=400)
         # print(GM.shape)
         probs = clf.predict_proba(Iinv)
         alpha = np.amax(probs, axis=1)
