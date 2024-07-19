@@ -20,6 +20,8 @@ from ssnp import SSNP
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import train_test_split
+from sklearn.manifold import TSNE, MDS
+from multilateration import MDSinv
 
 from tqdm import tqdm
 
@@ -100,15 +102,15 @@ data_dirs = [
     # 'blobs_dim3_n500_y10',
     # 'blobs_dim3_n5000_y10',
     # 'blobs_dim10_n5000_y10',
-    
+    # 'blobs_dim10_n5000_y10',
     # 'blobs_dim30_n5000_y10',
-    'blobs_dim60_n5000_y10',
+    # 'blobs_dim60_n5000_y10',
     # 'blobs_dim100_n5000_y10',
 
     # # 'blobs_dim300_n1500_y10',
 
     # 'har', 
-    # 'mnist', 
+    'mnist', 
     # 'fashionmnist', 
     # 'reuters', 
     ]
@@ -151,11 +153,12 @@ for d in data_dirs:
 
 
 projectors = {
-            'SDBM' : P_wrapper(ssnp=1),
-            'DBM': P_wrapper(NNinv_Torch=1, ),
-            'DeepView': P_wrapper(deepview=1),
-            'UMAP+iLAMP': Simple_P_wrapper(UMAP(random_state=42), Pinv_ilamp()),
-            'UMAP+RBF': Simple_P_wrapper(UMAP(random_state=42), RBFinv()),
+            # 'SDBM' : P_wrapper(ssnp=1),
+            # 'DBM': P_wrapper(NNinv_Torch=1, ),
+            # 'DeepView': P_wrapper(deepview=1),
+            # 'UMAP+iLAMP': Simple_P_wrapper(UMAP(random_state=42), Pinv_ilamp()),
+            # 'UMAP+RBF': Simple_P_wrapper(UMAP(random_state=42), RBFinv()),
+            'MDS+iMDS': Simple_P_wrapper(MDS(n_components=2, random_state=42), MDSinv()),
             # 'DBM_orig_keras': P_wrapper(NNinv_Keras=1),
             
             # 'SSNP_3' : SSNP(patience=5, opt='adam', bottleneck_activation='linear', verbose=0, bottleneck_dim=3),
@@ -232,7 +235,12 @@ for data_name, dataset in datasets_real.items():
             X_train_2d = proj.transform(X_train)
             print(proj_name, X_train_2d.shape)
         ##########################################
+        print('inverse transforming....: /')
         X_recon = proj.inverse_transform(X_train_2d)
+
+        save_path = os.path.join(save_dir, f"{data_name}_{proj_name}.npz")
+        np.savez(save_path, X_train_2d=X_train_2d, y_train=y_train, X_train=X_train, X_recon=X_recon)
+        print(f"saved to {save_path}")
         #         ########## LID
         # lpca = skdim.id.lPCA(ver="Fan").fit_pw(X_recon,
         #                       n_neighbors = 200,
@@ -269,12 +277,14 @@ for data_name, dataset in datasets_real.items():
         # # GM = map_builder.get_gradient_map()
         # GM = np.zeros(10)
         ##########################################NEW for gradient map
-        GM, Iinv = get_gradient_map(projecters=proj, x2d=X_train_2d, grid=400)
+        GM, Iinv = get_gradient_map(projecters=proj, x2d=X_train_2d, grid=200)
         # print(GM.shape)
         probs = clf.predict_proba(Iinv)
         alpha = np.amax(probs, axis=1)
         labels = probs.argmax(axis=1)
 
+        np.savez(save_path, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train, X_train=X_train, X_recon=X_recon)
+        print(f"saved to {save_path}")
         ########################
         if 'blob' in data_name:
             sampling_size = input_dim + 10
@@ -285,7 +295,7 @@ for data_name, dataset in datasets_real.items():
         LID_evalues = ID_finder_np(X_train_2d, proj, grid=500, sample_size=sampling_size, mode='nD').LID_eval
 
         ### save LID_evalues, (alpha, labels), GM, X_train_2d, y_train separately
-        save_path = os.path.join(save_dir, f"{data_name}_{proj_name}.npz")
+        
         np.savez(save_path, LID_evalues=LID_evalues, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train, X_train=X_train, X_recon=X_recon)
         print(f"saved to {save_path}")
         
