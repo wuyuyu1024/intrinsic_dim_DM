@@ -373,7 +373,7 @@ def get_data_LID(X_2d, y, Pinv, threshold=0.95, device='cpu', data=None):
     else:
         return np.mean(reco_lid_list), np.mean(data_lid_list)
     
-def get_eigen_general(X, n_neighbors=100, GPU=False, mode='TV', threshold=0.95, normalize=True):
+def get_eigen_general(X, n_neighbors=120, GPU=False, mode='TV', threshold=0.95, normalize=True):
     fnn = NearestNeighbors(n_neighbors=n_neighbors, algorithm='ball_tree', n_jobs=-1).fit(X)
     eigen_list = []
     id_list = []
@@ -382,8 +382,14 @@ def get_eigen_general(X, n_neighbors=100, GPU=False, mode='TV', threshold=0.95, 
         subset = X[subset_ind].squeeze(0)
         dev = T.device('cuda' if T.cuda.is_available() else 'cpu')
         if GPU:
-            cov = ID_finder_T.compute_eigen(data=subset, device=dev, normalize=normalize)
-            eigen_list.append(cov.to('cpu').numpy())
+            try:
+                print('GPU available')
+                cov = ID_finder_T.compute_eigen(data=subset, device=dev, normalize=normalize)
+                eigen_list.append(cov.to('cpu').numpy())
+            except:
+                print('GPU not available, switch to CPU')
+                cov = ID_finder_np.compute_eigen(data=subset)
+                eigen_list.append(cov)
         else:
             cov = ID_finder_np.compute_eigen(data=subset)
             eigen_list.append(cov)

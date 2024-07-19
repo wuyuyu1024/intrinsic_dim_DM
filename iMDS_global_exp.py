@@ -15,6 +15,14 @@ from sklearn.datasets import make_blobs
 from sklearn.manifold import TSNE, MDS
 from multilateration import MDSinv
 
+from tqdm import tqdm
+
+from map_evaluation import P_wrapper, MapBuilder
+from ssnp import SSNP
+from lamp import Pinv_ilamp
+# from NNinv import NNinv_torch
+from rbf_inv import RBFinv
+from umap import UMAP
 from LID import ID_finder_T, get_data_LID, get_eigen_general , ID_finder_np, ID_finder_T
 from gradient_map import get_gradient_map
 
@@ -81,8 +89,8 @@ data_dirs = [
 
     # # 'blobs_dim300_n1500_y10',
 
-    # 'har', 
-    # 'mnist', 
+    'har', 
+    'mnist', 
     # 'fashionmnist', 
     # 'reuters', 
     ]
@@ -125,12 +133,12 @@ for d in data_dirs:
 
 
 projectors = {
-            # 'SDBM' : P_wrapper(ssnp=1),
-            # 'DBM': P_wrapper(NNinv_Torch=1, ),
-            # 'DeepView': P_wrapper(deepview=1),
-            # 'UMAP+iLAMP': Simple_P_wrapper(UMAP(random_state=42), Pinv_ilamp()),
-            # 'UMAP+RBF': Simple_P_wrapper(UMAP(random_state=42), RBFinv()),
-            'MDS+iMDS': Simple_P_wrapper(MDS(n_components=2, random_state=42), MDSinv()),
+            'SDBM' : P_wrapper(ssnp=1),
+            'DBM': P_wrapper(NNinv_Torch=1, ),
+            'DeepView': P_wrapper(deepview=1),
+            'UMAP+iLAMP': Simple_P_wrapper(UMAP(random_state=42), Pinv_ilamp()),
+            'UMAP+RBF': Simple_P_wrapper(UMAP(random_state=42), RBFinv()),
+            # 'MDS+iMDS': Simple_P_wrapper(MDS(n_components=2, random_state=42), MDSinv()),
 }
 
 
@@ -200,4 +208,9 @@ for data_name, dataset in datasets_real.items():
         ### save LID_evalues, (alpha, labels), GM, X_train_2d, y_train separately
         save_path = os.path.join(save_dir, f"{data_name}_{proj_name}.npz")
         np.savez(save_path, eigen_list_global=eigen_list_cpu, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train, X_train=X_train, X_recon=X_recon)
-        print(f"saved to {save_path}")
+        print(f"second saved to {save_path}")
+
+        eigen_list, lid_list = get_eigen_general(Iinv, GPU=True, n_neighbors=120)
+
+        np.savez(save_path, LID_evalues=eigen_list, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train, X_train=X_train, X_recon=X_recon)
+        print(f"final saved to {save_path}")
