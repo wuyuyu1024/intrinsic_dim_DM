@@ -5,6 +5,7 @@ from sklearn.manifold import MDS
 from scipy.spatial.distance import cdist
 #from sklearn_extra.cluster import KMedoids
 from sklearn.cluster import KMeans
+from tqdm import tqdm
 
 import os  
 os.chdir(os.path.dirname(__file__))
@@ -235,7 +236,7 @@ class MDSinv:
         # v_func = np.vectorize(get_any_high_dimensional_position)
         # return v_func(self.X, self.X2d, p_list, self.point_selection, self.trials)
         Xnd_recons = []
-        for p in p_list:
+        for p in tqdm(p_list):
             pnd = get_any_high_dimensional_position(self.X, self.X2d, p, self.point_selection, self.trials)
             Xnd_recons.append(pnd.reshape(-1))
         print(len(Xnd_recons))

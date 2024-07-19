@@ -108,8 +108,16 @@ class ID_finder_np:
 
     @staticmethod
     def process_results(LID_eval, mode='dim', threshold=0.95):
-        if mode == 'dim':
+        if mode == 'TV':
             cumsum = np.cumsum(LID_eval, axis=1)
+            LID_eval = (cumsum < threshold).sum(axis=1) + 1
+        elif mode == 'MV':
+            LID_eval = (LID_eval >= (1-threshold)).sum(axis=1)
+        elif mode == 'VR':
+            delta_v = LID_eval[:, :] - np.concatenate((LID_eval[:, 1:], np.zeros((LID_eval.shape[0], 1))), axis=1)
+            total_dv = np.sum(delta_v, axis=1)
+            norm_delta_v = delta_v/total_dv.reshape(-1, 1)
+            cumsum = np.cumsum(norm_delta_v, axis=1)
             LID_eval = (cumsum < threshold).sum(axis=1) + 1
         elif mode == 'percent':
             LID_eval = np.sum(LID_eval[:, :2], axis=1)
@@ -381,7 +389,9 @@ def get_eigen_general(X, n_neighbors=100, GPU=False, mode='TV', threshold=0.95, 
             eigen_list.append(cov)
 
     eigen_list = np.array(eigen_list)
-    if normalize:
+    if not GPU:
+        lid_list = ID_finder_np.process_results(eigen_list, mode=mode, threshold=threshold)
+    elif normalize and GPU:
         lid_list = ID_finder_T.process_results(T.tensor(eigen_list).to(dev), mode=mode, threshold=threshold).to('cpu').numpy()
     else:
         ## No. eigen that > 1 
