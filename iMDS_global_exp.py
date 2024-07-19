@@ -188,7 +188,8 @@ for data_name, dataset in datasets_real.items():
             X_train_2d = proj.transform(X_train)
             print(proj_name, X_train_2d.shape)
         ##########################################
-        X_recon = proj.inverse_transform(X_train_2d)
+        # X_recon = proj.inverse_transform(X_train_2d)
+        X_recon = None
       
         ##########################################NEW for gradient map
         GM, Iinv = get_gradient_map(projecters=proj, x2d=X_train_2d, grid=500)
