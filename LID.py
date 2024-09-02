@@ -376,32 +376,40 @@ def get_data_LID(X_2d, y, Pinv, threshold=0.95, device='cpu', data=None):
 def get_eigen_general(X, n_neighbors=120, GPU=False, mode='TV', threshold=0.95, normalize=True):
     fnn = NearestNeighbors(n_neighbors=n_neighbors, algorithm='ball_tree', n_jobs=-1).fit(X)
     eigen_list = []
-    id_list = []
+    # id_list = []
+    cnt = 0
     for i in tqdm(X):
         subset_ind = fnn.kneighbors(i.reshape(1, -1), return_distance=False)
         subset = X[subset_ind].squeeze(0)
         dev = T.device('cuda' if T.cuda.is_available() else 'cpu')
         if GPU:
             try:
-                print('GPU available')
+                # print('GPU available')
                 cov = ID_finder_T.compute_eigen(data=subset, device=dev, normalize=normalize)
                 eigen_list.append(cov.to('cpu').numpy())
             except:
-                print('GPU not available, switch to CPU')
+                if cnt == 0:
+                    cnt += 1
+                    print('GPU not available, switch to CPU') 
                 cov = ID_finder_np.compute_eigen(data=subset)
                 eigen_list.append(cov)
         else:
             cov = ID_finder_np.compute_eigen(data=subset)
             eigen_list.append(cov)
 
+    print(f'Finish computing eigenvalues ({cnt} times use cpu) ')
     eigen_list = np.array(eigen_list)
-    if not GPU:
-        lid_list = ID_finder_np.process_results(eigen_list, mode=mode, threshold=threshold)
-    elif normalize and GPU:
-        lid_list = ID_finder_T.process_results(T.tensor(eigen_list).to(dev), mode=mode, threshold=threshold).to('cpu').numpy()
-    else:
-        ## No. eigen that > 1 
-        lid_list = (eigen_list > 1).sum(axis=1)
-    return eigen_list, lid_list
+    ## normalize the eigenvalues
+    if normalize:
+        eigen_list = eigen_list / eigen_list.sum(axis=1).reshape(-1, 1)
+    return eigen_list
+    # if not GPU:
+    #     lid_list = ID_finder_np.process_results(eigen_list, mode=mode, threshold=threshold)
+    # elif normalize and GPU:
+    #     lid_list = ID_finder_T.process_results(T.tensor(eigen_list).to(dev), mode=mode, threshold=threshold).to('cpu').numpy()
+    # else:
+    #     ## No. eigen that > 1 
+    #     lid_list = (eigen_list > 1).sum(axis=1)
+    # return eigen_list, lid_list
         
 

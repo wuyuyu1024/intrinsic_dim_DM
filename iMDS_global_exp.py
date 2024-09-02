@@ -2,6 +2,8 @@ import sys
 import os
 
 sys.path.append('../inverse_projections')
+sys.path.append('../InverseProjections')
+sys.path.append('../dbm_evaluation')
 
 
 import numpy as np
@@ -18,27 +20,27 @@ from multilateration import MDSinv
 from tqdm import tqdm
 
 from map_evaluation import P_wrapper, MapBuilder
-from ssnp import SSNP
+# from ssnp import SSNP
 from lamp import Pinv_ilamp
 # from NNinv import NNinv_torch
 from rbf_inv import RBFinv
 from umap import UMAP
 from LID import ID_finder_T, get_data_LID, get_eigen_general , ID_finder_np, ID_finder_T
 from gradient_map import get_gradient_map
+import tensorflow as tf
 
-
-# gpus = tf.config.experimental.list_physical_devices('GPU')
-# if gpus:
-# # Restrict TensorFlow to only allocate 1GB of memory on the first GPU
-#     try:
-#         tf.config.experimental.set_virtual_device_configuration(
-#             gpus[0],
-#             [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=2048)]) # Notice here
-#         logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-#         print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-#     except RuntimeError as e:
-#         # Virtual devices must be set before GPUs have been initialized
-#         print(e)
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+# Restrict TensorFlow to only allocate 1GB of memory on the first GPU
+    try:
+        tf.config.experimental.set_virtual_device_configuration(
+            gpus[0],
+            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=2048)]) # Notice here
+        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+    except RuntimeError as e:
+        # Virtual devices must be set before GPUs have been initialized
+        print(e)
 
 
 class Simple_P_wrapper:
@@ -89,8 +91,8 @@ data_dirs = [
 
     # # 'blobs_dim300_n1500_y10',
 
-    'har', 
-    'mnist', 
+    # 'har', 
+    # 'mnist', 
     # 'fashionmnist', 
     # 'reuters', 
     ]
@@ -133,12 +135,12 @@ for d in data_dirs:
 
 
 projectors = {
-            'SDBM' : P_wrapper(ssnp=1),
-            'DBM': P_wrapper(NNinv_Torch=1, ),
-            'DeepView': P_wrapper(deepview=1),
-            'UMAP+iLAMP': Simple_P_wrapper(UMAP(random_state=42), Pinv_ilamp()),
-            'UMAP+RBF': Simple_P_wrapper(UMAP(random_state=42), RBFinv()),
-            # 'MDS+iMDS': Simple_P_wrapper(MDS(n_components=2, random_state=42), MDSinv()),
+            # 'SDBM' : P_wrapper(ssnp=1),
+            # 'DBM': P_wrapper(NNinv_Torch=1, ),
+            # 'DeepView': P_wrapper(deepview=1),
+            # 'UMAP+iLAMP': Simple_P_wrapper(UMAP(random_state=42), Pinv_ilamp()),
+            # 'UMAP+RBF': Simple_P_wrapper(UMAP(random_state=42), RBFinv()),
+            'MDS+iMDS': Simple_P_wrapper(MDS(n_components=2, random_state=42), MDSinv()),
 }
 
 
@@ -211,7 +213,7 @@ for data_name, dataset in datasets_real.items():
         np.savez(save_path, eigen_list_global=eigen_list_cpu, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train, X_train=X_train, X_recon=X_recon)
         print(f"second saved to {save_path}")
 
-        eigen_list, lid_list = get_eigen_general(Iinv, GPU=True, n_neighbors=120)
+        eigen_list = get_eigen_general(Iinv, GPU=True, n_neighbors=120)
 
-        np.savez(save_path, LID_evalues=eigen_list, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train, X_train=X_train, X_recon=X_recon)
+        np.savez(save_path, LID_evalues=eigen_list, eigen_list_global=eigen_list_cpu, alpha=alpha, labels=labels, GM=GM, X_train_2d=X_train_2d, y_train=y_train, X_train=X_train, X_recon=X_recon)
         print(f"final saved to {save_path}")
